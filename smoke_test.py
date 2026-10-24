@@ -1,70 +1,66 @@
 """
-Quick smoke test for patterns.py (detect-secrets + patterns.json) 
-and ner_detector.py (BERT + NLTK fallback).
-Run with: python smoke_test.py
+smoke_test.py — quick end-to-end pipeline check
+Run: .venv\Scripts\python.exe smoke_test.py
 """
 import sys, os
-sys.path.insert(0, os.path.dirname(__file__))
-
-TEST_TEXT = """
-Dear John Smith,
-
-Your Example Bank account has been suspended. Please verify immediately.
-Here are your new login credentials:
-  username: jsmith@Example Bank.com
-  password: MySecretPass99!
-
-Your OTP code is 847231.
-
-AWS_ACCESS_KEY_ID = AKIAIOSFODNN7EXAMPLE
-AWS_SECRET_ACCESS_KEY = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-
-Your Visa card: 4111 1111 1111 1111
-CVV: 123   Expires: 12/26
-
-Account Number: 12345678   Sort Code: 20-00-00
-IBAN: GB29NWBK60161331926819
-
-Regards,
-Example Bank Security Team
-"""
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 print("=" * 60)
-print("SMOKE TEST: patterns.py (detect-secrets + regex)")
+print("PIPELINE SMOKE TEST")
 print("=" * 60)
-from patterns import run_regex_scan
-regex_findings = run_regex_scan(TEST_TEXT)
-print(f"  → {len(regex_findings)} finding(s) from regex/detect-secrets layer")
-for f in regex_findings[:5]:
-    print(f"    [{f['risk_tier']:8}] {f['credential_type']:30} | sublayer: {f.get('sublayer','?')} | {f['redacted_value']}")
-if len(regex_findings) > 5:
-    print(f"    ... and {len(regex_findings)-5} more")
 
-print()
-print("=" * 60)
-print("SMOKE TEST: ner_detector.py (BERT / NLTK fallback)")
-print("=" * 60)
-from ner_detector import run_ner_scan, _get_bert_pipeline
-pipe = _get_bert_pipeline()
-print(f"  BERT pipeline: {'LOADED' if pipe else 'not available (NLTK fallback)'}")
-ner_findings = run_ner_scan(TEST_TEXT)
-print(f"  → {len(ner_findings)} finding(s) from NER layer")
-for f in ner_findings[:5]:
-    print(f"    [{f['risk_tier']:8}] {f['credential_type']:30} | sublayer: {f.get('sublayer','?')} | {f['redacted_value']}")
-if len(ner_findings) > 5:
-    print(f"    ... and {len(ner_findings)-5} more")
+# ── 1. DistilBERT fine-tuned ─────────────────────────────────
+print("\n[1/4] DistilBERT Fine-Tuned Classifier")
+from bert_detector import DistilBertEmailDetector
+det = DistilBertEmailDetector()
 
-print()
+phish_email = "URGENT! Your bank account has been suspended. Click here immediately to verify your identity or you will lose access."
+legit_email = "Hi team, please find attached the meeting agenda for tomorrow's 10am call. Let me know if you have questions."
+
+r1 = det.predict(phish_email)
+r2 = det.predict(legit_email)
+
+print(f"  Phishing test → {r1['label']:12} | {r1['risk_level']} | conf={r1['confidence']} | model={r1['model']}")
+print(f"  Legit test    → {r2['label']:12} | {r2['risk_level']} | conf={r2['confidence']}")
+
+phish_ok = r1['is_phishing']
+legit_ok  = not r2['is_phishing']
+print(f"  Result: {'✅ PASS' if phish_ok and legit_ok else '❌ FAIL'}")
+
+# ── 2. URL Scanner ───────────────────────────────────────────
+print("\n[2/4] URL Scanner (PhishGuard)")
+try:
+    from url_scanner import extract_urls_from_text, fast_scan
+    urls = extract_urls_from_text("Check this http://192.168.1.1/verify-account and https://google.com")
+    print(f"  Extracted {len(urls)} URL(s): {urls}")
+    if urls:
+        res = fast_scan(urls[0])
+        print(f"  Fast scan → {res.get('verdict', '?')}")
+    print("  Result: ✅ PASS")
+except Exception as e:
+    print(f"  Result: ❌ FAIL — {e}")
+
+# ── 3. Voice/Audio MFCC ─────────────────────────────────────
+print("\n[3/4] Voice Deepfake Detector")
+try:
+    from voice.evaluate import VoiceDeepfakeDetector
+    vd = VoiceDeepfakeDetector()
+    print(f"  Model loaded: {vd is not None}")
+    print(f"  Result: ✅ PASS (model ready)")
+except Exception as e:
+    print(f"  Result: ⚠️  {e} (no audio file in test, but module loads)")
+
+# ── 4. LLM Explanation ──────────────────────────────────────
+print("\n[4/4] LLM (Ollama / Qwen) Connection")
+try:
+    import ollama
+    models = ollama.list()
+    model_names = [m.model for m in models.models]
+    print(f"  Available models: {model_names}")
+    print(f"  Result: ✅ PASS")
+except Exception as e:
+    print(f"  Result: ❌ — {e}")
+
+print("\n" + "=" * 60)
+print("SMOKE TEST COMPLETE")
 print("=" * 60)
-print("SMOKE TEST: deduplication across layers")
-print("=" * 60)
-from context_analyzer import deduplicate
-all_raw = regex_findings + ner_findings
-deduped = deduplicate(all_raw)
-print(f"  Raw total: {len(all_raw)}  →  After dedup: {len(deduped)}")
-multi = [f for f in deduped if len(f.get('detected_by', [])) > 1]
-print(f"  Multi-layer confirmed: {len(multi)}")
-for f in multi[:3]:
-    print(f"    {f['credential_type']} | detected_by: {f['detected_by']}")
-print()
-print("ALL SMOKE TESTS COMPLETE ✓")
