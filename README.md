@@ -4,8 +4,6 @@
 
 **AI-Powered Enterprise Fraud Detection & Data Security**
 
-*Built for Barclays Hack-O-Hire 2.0*
-
 [![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Latest-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://reactjs.org/)
@@ -29,6 +27,41 @@
 - 📎 **Malicious attachments** (malware, macros, exploits)
 - 🌐 **Spoofed / phishing websites**
 - 📨 **Fraudulent SMTP email delivery**
+
+---
+
+## 📌 Project Status & Origin
+
+**Baseline.** This repository starts from an existing AegisAI FraudShield platform built earlier
+by the original authors. The module folders are imported from that baseline in commits named `chore(<module>): import baseline ...`.
+
+**Built in this repository.** Everything after the baseline imports, tracked in
+[Issues](https://github.com/yashchandnani07/Nexon/issues):
+
+- One shared PostgreSQL database for every service, replacing per-service SQLite files,
+  JSON files on disk and in-memory state ([docs/DATABASE.md](docs/DATABASE.md))
+- A common `/summary` and `/history` API on every service ([docs/API_CONTRACT.md](docs/API_CONTRACT.md))
+- Dashboards that read live data from those APIs instead of values typed into the source
+- Detection rules, domain lists, thresholds and users stored in the database instead of in code
+- Secrets moved out of source files into `.env`
+
+### Team
+
+| Owner | GitHub | Area |
+|---|---|---|
+| Aditya | [@adityarandive10](https://github.com/adityarandive10) | Frontend |
+| Manash | [@manash008](https://github.com/manash008) | Credential Scanner, Attachment Scanner |
+| Mitanshu | [@mitanshu007](https://github.com/mitanshu007) | Website Spoofing, SMTP Fraud Gateway |
+| Yash | [@yashchandnani07](https://github.com/yashchandnani07) | Sandbox Harness, DLP Gateway, Email Monitor, Prompt Guard, Voice Scanner, Scheduler, infrastructure |
+
+### Documentation
+
+| Document | What it covers |
+|---|---|
+| [docs/SETUP.md](docs/SETUP.md) | Install, `.env`, running one service or the whole stack |
+| [docs/DATABASE.md](docs/DATABASE.md) | Shared database rules, the `db.py` template, table ownership |
+| [docs/API_CONTRACT.md](docs/API_CONTRACT.md) | The `/summary` and `/history` endpoints every service exposes |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Folder ownership, branching, commit messages, what never to commit |
 
 ---
 
@@ -116,43 +149,25 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/hack-o-hire-2.0-master.git
-cd hack-o-hire-2.0-master
+git clone https://github.com/yashchandnani07/Nexon.git
+cd Nexon
 ```
 
 ---
 
 ### 2. Configure Environment Variables
 
-Copy and fill in the environment file for the DLP Gateway:
+Create the root `.env` (shared database URL, IMAP credentials, JWT secret) and the DLP
+Gateway settings file:
 
 ```bash
+cp .env.example .env
 cp dlp-gateway/.env.example dlp-gateway/.env
 ```
 
-Edit `dlp-gateway/.env` and set:
-
-```env
-# PostgreSQL (already set for local Docker)
-POSTGRES_URL=postgresql+asyncpg://dlp:dlp@postgres:5432/dlp
-REDIS_URL=redis://redis:6379
-
-# Ollama (shared LLM runtime)
-OLLAMA_URL=http://sandbox-ollama:11434
-
-# SMTP (for email alerts)
-SMTP_HOST=mailhog
-SMTP_PORT=1025
-```
-
-Also update `docker-compose.yml` with your Gmail credentials under the `email-monitor` service (or leave as-is to use the demo account):
-
-```yaml
-IMAP_USER: "your-email@gmail.com"
-IMAP_PASSWORD: "your-app-password"   # Gmail App Password (16-char)
-```
-
-> **Note:** Generate a Gmail App Password at [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords). Enable 2FA first.
+Fill in `.env` as described in [docs/SETUP.md](docs/SETUP.md). No credential is stored in
+`docker-compose.yml`; it reads everything from `.env`. If `DATABASE_URL` is left unset, the
+services fall back to the local `postgres` container.
 
 ---
 
@@ -197,7 +212,7 @@ This will:
 docker compose down
 ```
 
-To also remove volumes (database data):
+To also remove volumes (local Postgres data and downloaded Ollama models):
 
 ```bash
 docker compose down -v
@@ -408,7 +423,7 @@ Isolated environment for security research and testing:
 ## 📁 Project Structure
 
 ```
-hack-o-hire-2.0-master/
+nexon/
 │
 ├── docker-compose.yml              # Orchestrates all 13 containers
 ├── nginx/
@@ -778,7 +793,8 @@ DLP Engine runs fast detection layers in parallel using `asyncio.gather()` — k
 
 ## 🤝 Contributors
 
-This project was built for **Barclays Hack-O-Hire 2.0** by a dedicated team.
+The baseline platform was built earlier by its original authors. The work in
+this repository is by the team listed under [Project Status & Origin](#-project-status--origin).
 
 ---
 
